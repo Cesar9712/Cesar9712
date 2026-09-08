@@ -5,6 +5,7 @@ const PORT = Number(process.env.PORT || 10000);
 const BASE = process.env.SUPERTEAM_BASE_URL || 'https://superteam.fun';
 const NAME = process.env.SUPERTEAM_AGENT_NAME || 'CryptoBountyOperator';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+const INSPECT_SLUGS = (process.env.INSPECT_SLUGS || '').split(',').map(x => x.trim()).filter(Boolean);
 
 const state = {
   apiKey: process.env.SUPERTEAM_API_KEY || '',
@@ -97,6 +98,7 @@ async function scan() {
     title: x.title || x.name || null,
     type: x.type || x.listingType || null,
     agentAccess: x.agentAccess || null,
+    deadline: x.deadline || x.submissionDeadline || x.endTime || null,
     compensation: x.compensation || x.reward || x.totalReward || null,
     score: x.operatorScore,
   }));
@@ -107,6 +109,17 @@ async function scan() {
 async function details(slug) {
   await bootstrap();
   return request(`/api/agents/listings/details/${encodeURIComponent(slug)}`);
+}
+
+async function inspectConfigured() {
+  for (const slug of INSPECT_SLUGS) {
+    try {
+      const d = await details(slug);
+      console.log(JSON.stringify({ event: 'listing_inspection', slug, details: d }));
+    } catch (e) {
+      console.error(JSON.stringify({ event: 'listing_inspection_error', slug, message: String(e.message || e) }));
+    }
+  }
 }
 
 async function submit(q) {
@@ -154,7 +167,7 @@ http.createServer(async (req,res) => {
   } catch(e) { state.lastError=String(e.message||e); console.error(JSON.stringify({event:'error',message:state.lastError})); return send(res,e.status||500,{error:state.lastError,data:e.data||null}); }
 }).listen(PORT, async () => {
   console.log(JSON.stringify({event:'server_started',port:PORT,agentName:NAME}));
-  try { await bootstrap(); await scan(); } catch(e) { state.lastError=String(e.message||e); console.error(JSON.stringify({event:'startup_error',message:state.lastError})); }
+  try { await bootstrap(); await scan(); await inspectConfigured(); } catch(e) { state.lastError=String(e.message||e); console.error(JSON.stringify({event:'startup_error',message:state.lastError})); }
 });
 
 setInterval(() => scan().catch(e => { state.lastError=String(e.message||e); console.error(JSON.stringify({event:'scheduled_scan_error',message:state.lastError})); }), 10*60*1000);
