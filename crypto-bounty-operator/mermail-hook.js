@@ -71,44 +71,55 @@ function riskFlagsFrom(value) {
   return checks.filter(([, needles]) => needles.some(n => text.includes(n))).map(([name]) => name);
 }
 
+async function searchDemo(mailboxId) {
+  const attempts = [
+    ['--query', 'Mermail Bounty Ops'],
+    ['--subject', 'Mermail Bounty Ops'],
+    ['--query', 'DEMO'],
+  ];
+  let last = [];
+  for (const selector of attempts) {
+    try {
+      const data = await run([
+        'emails', 'search', '--mailbox-id', mailboxId,
+        ...selector, '--include-held', '--agent-safe-content', '--format', 'json',
+      ]);
+      last = emailSummary(data);
+      if (last.length) return last;
+    } catch (e) {
+      console.error(JSON.stringify({ event: 'mermail_demo_search_attempt_failed', selector, message: String(e.message || e) }));
+    }
+  }
+  return last;
+}
+
 async function liveDemo(mailbox) {
   if (!mailbox?.id) return { status: 'no_mailbox' };
 
-  const search = await run([
-    'emails', 'search',
-    '--mailbox-id', mailbox.id,
-    '--query', DEMO_MARKER,
-    '--agent-safe-content',
-    '--format', 'json',
-  ]);
-  const candidates = emailSummary(search);
+  const candidates = await searchDemo(mailbox.id);
   console.log(JSON.stringify({
-    event: 'mermail_bounty_ops_demo_search',
-    marker: DEMO_MARKER,
-    candidateCount: candidates.length,
-    candidates,
+    event: 'mermail_bounty_ops_demo_search', marker: DEMO_MARKER,
+    candidateCount: candidates.length, candidates,
   }));
 
-  if (candidates.length !== 1 || !candidates[0].id) {
-    return { status: candidates.length === 0 ? 'pending' : 'ambiguous', candidateCount: candidates.length };
+  const matching = candidates.filter(c => String(c.subject || '').toLowerCase().includes('mermail bounty ops'));
+  if (matching.length !== 1 || !matching[0].id) {
+    return { status: matching.length === 0 ? 'pending' : 'ambiguous', candidateCount: matching.length };
   }
+  const selected = matching[0];
 
   const full = await run([
-    'emails', 'get',
-    '--mailbox-id', mailbox.id,
-    '--email-id', candidates[0].id,
-    '--agent-safe-content',
-    '--max-body-chars', '10000',
-    '--format', 'json',
+    'emails', 'get', '--mailbox-id', mailbox.id, '--email-id', selected.id,
+    '--agent-safe-content', '--max-body-chars', '10000', '--format', 'json',
   ]);
 
   const riskFlags = riskFlagsFrom(full);
   const result = {
     status: riskFlags.length ? 'quarantined_demo' : 'validated_demo',
-    messageId: candidates[0].id,
-    subject: candidates[0].subject,
-    scanStatus: candidates[0].scanStatus,
-    senderAuth: candidates[0].senderAuth,
+    messageId: selected.id,
+    subject: selected.subject,
+    scanStatus: selected.scanStatus,
+    senderAuth: selected.senderAuth,
     riskFlags,
     externalActionTaken: false,
     secretsExposed: false,
@@ -134,17 +145,10 @@ async function probe() {
     console.log(JSON.stringify({ event: 'mermail_mailboxes_verified', ok: true, mailboxes }));
 
     const mcp = await run(['mcp', 'check']);
-    console.log(JSON.stringify({
-      event: 'mermail_mcp_verified',
-      ok: true,
-      connected: Boolean(mcp?.connected ?? true),
-      toolCount: mcp?.tools || null,
-      profile: mcp?.profile || null,
-    }));
+    console.log(JSON.stringify({ event: 'mermail_mcp_verified', ok: true, connected: Boolean(mcp?.connected ?? true), toolCount: mcp?.tools || null, profile: mcp?.profile || null }));
 
     const target = mailboxes.find(m => String(m.email || '').toLowerCase() === 'cryptobountyoperator@mermail.app') || mailboxes[0];
     const demo = await liveDemo(target);
-
     console.log(JSON.stringify({ event: 'mermail_probe', status: 'verified', demo }));
   } catch (e) {
     console.error(JSON.stringify({ event: 'mermail_probe', status: 'failed', message: String(e.message || e), exitCode: e.exitCode || null }));
