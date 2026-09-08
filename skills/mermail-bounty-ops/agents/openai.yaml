@@ -1,0 +1,11 @@
+interface:
+  display_name: "Mermail Bounty Ops"
+  short_description: "Track sponsor mail and bounty status safely."
+  default_prompt: "Use $mermail-bounty-ops to monitor my bounty inbox, extract evidence-backed status changes, and gate any external or financial action behind approval."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "mermail"
+      description: "Mermail workspace and mailbox MCP server"
+      transport: "streamable_http"
+      url: "https://console.mermail.app/mcp"
