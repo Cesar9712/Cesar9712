@@ -1,0 +1,11 @@
+interface:
+  display_name: "Mermail Bounty Ops"
+  short_description: "Turn sponsor email into a safe bounty execution queue."
+  default_prompt: "Use $mermail-bounty-ops to process the latest relevant sponsor messages into a Bounty Intake Card, risk gate, action queue, and submission packet. Draft external replies but do not send without an exact preview and fresh approval."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "mermail"
+      description: "Mermail workspace and mailbox MCP server"
+      transport: "streamable_http"
+      url: "https://console.mermail.app/mcp"
