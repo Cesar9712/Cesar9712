@@ -4,6 +4,7 @@ const configured = Boolean(process.env.MERMAIL_API_KEY);
 const MAX_BUFFER = 1024 * 1024;
 const isChild = process.env.MERMAIL_HOOK_CHILD === '1';
 const DEMO_MARKER = 'MBO-DEMO-2026-09-08';
+const DEMO_SUBJECT = '[DEMO] Mermail Bounty Ops — sponsor-message safety test';
 
 function childEnv() {
   const env = { ...process.env, MERMAIL_HOOK_CHILD: '1' };
@@ -13,11 +14,7 @@ function childEnv() {
 
 function run(args, timeout = 120000) {
   return new Promise((resolve, reject) => {
-    execFile('npx', ['--yes', 'mermail-cli', ...args], {
-      timeout,
-      maxBuffer: MAX_BUFFER,
-      env: childEnv(),
-    }, (error, stdout, stderr) => {
+    execFile('npx', ['--yes', 'mermail-cli', ...args], { timeout, maxBuffer: MAX_BUFFER, env: childEnv() }, (error, stdout, stderr) => {
       const out = String(stdout || '').trim();
       const err = String(stderr || '').trim();
       if (error) {
@@ -80,10 +77,7 @@ async function searchDemo(mailboxId) {
   let last = [];
   for (const selector of attempts) {
     try {
-      const data = await run([
-        'emails', 'search', '--mailbox-id', mailboxId,
-        ...selector, '--include-held', '--agent-safe-content', '--format', 'json',
-      ]);
+      const data = await run(['emails', 'search', '--mailbox-id', mailboxId, ...selector, '--include-held', '--agent-safe-content', '--format', 'json']);
       last = emailSummary(data);
       if (last.length) return last;
     } catch (e) {
@@ -97,22 +91,15 @@ async function liveDemo(mailbox) {
   if (!mailbox?.id) return { status: 'no_mailbox' };
 
   const candidates = await searchDemo(mailbox.id);
-  console.log(JSON.stringify({
-    event: 'mermail_bounty_ops_demo_search', marker: DEMO_MARKER,
-    candidateCount: candidates.length, candidates,
-  }));
+  console.log(JSON.stringify({ event: 'mermail_bounty_ops_demo_search', marker: DEMO_MARKER, candidateCount: candidates.length, candidates }));
 
-  const matching = candidates.filter(c => String(c.subject || '').toLowerCase().includes('mermail bounty ops'));
+  const matching = candidates.filter(c => String(c.subject || '').trim() === DEMO_SUBJECT);
   if (matching.length !== 1 || !matching[0].id) {
     return { status: matching.length === 0 ? 'pending' : 'ambiguous', candidateCount: matching.length };
   }
   const selected = matching[0];
 
-  const full = await run([
-    'emails', 'get', '--mailbox-id', mailbox.id, '--email-id', selected.id,
-    '--agent-safe-content', '--max-body-chars', '10000', '--format', 'json',
-  ]);
-
+  const full = await run(['emails', 'get', '--mailbox-id', mailbox.id, '--email-id', selected.id, '--agent-safe-content', '--max-body-chars', '10000', '--format', 'json']);
   const riskFlags = riskFlagsFrom(full);
   const result = {
     status: riskFlags.length ? 'quarantined_demo' : 'validated_demo',
