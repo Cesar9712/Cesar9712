@@ -54,8 +54,7 @@ async function bootstrap() {
   state.agentId = d.agentId || '';
   state.username = d.username || '';
   if (!state.apiKey) throw new Error('Registration returned no apiKey');
-  // TEMPORARY bootstrap log so the operator credential can be persisted into Render env vars.
-  console.log(JSON.stringify({ event: 'agent_registered_bootstrap', apiKey: state.apiKey, claimCode: state.claimCode, agentId: state.agentId, username: state.username }));
+  console.log(JSON.stringify({ event: 'agent_registered', agentId: state.agentId, username: state.username }));
 }
 
 function score(l) {
@@ -140,10 +139,10 @@ async function submit(q) {
 http.createServer(async (req,res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (url.pathname === '/health') return send(res,200,{status:'ok',agentConfigured:Boolean(state.apiKey),lastScanAt:state.lastScanAt,count:state.opportunities.length,lastError:state.lastError});
+    if (url.pathname === '/health') return send(res,200,{status:'ok',agentConfigured:Boolean(state.apiKey),agentId:state.agentId||null,username:state.username||null,lastScanAt:state.lastScanAt,count:state.opportunities.length,lastError:state.lastError});
     if (!url.pathname.startsWith('/admin/')) return send(res,404,{error:'not found'});
     if (!auth(url)) return send(res,401,{error:'unauthorized'});
-    if (url.pathname === '/admin/bootstrap') { await bootstrap(); return send(res,200,{apiKey:state.apiKey,claimCode:state.claimCode,agentId:state.agentId,username:state.username}); }
+    if (url.pathname === '/admin/bootstrap') { await bootstrap(); return send(res,200,{configured:Boolean(state.apiKey),claimCode:state.claimCode,agentId:state.agentId,username:state.username}); }
     if (url.pathname === '/admin/scan' || url.pathname === '/admin/opportunities') return send(res,200,{opportunities:await scan(),lastScanAt:state.lastScanAt});
     if (url.pathname.startsWith('/admin/details/')) return send(res,200,await details(decodeURIComponent(url.pathname.slice('/admin/details/'.length))));
     if (url.pathname === '/admin/submit') {
