@@ -2,13 +2,20 @@ const { execFile } = require('child_process');
 
 const configured = Boolean(process.env.MERMAIL_API_KEY);
 const MAX_BUFFER = 1024 * 1024;
+const isChild = process.env.MERMAIL_HOOK_CHILD === '1';
+
+function childEnv() {
+  const env = { ...process.env, MERMAIL_HOOK_CHILD: '1' };
+  delete env.NODE_OPTIONS;
+  return env;
+}
 
 function run(args, timeout = 120000) {
   return new Promise((resolve, reject) => {
     execFile('npx', ['--yes', 'mermail-cli', ...args], {
       timeout,
       maxBuffer: MAX_BUFFER,
-      env: process.env,
+      env: childEnv(),
     }, (error, stdout, stderr) => {
       const out = String(stdout || '').trim();
       const err = String(stderr || '').trim();
@@ -58,6 +65,8 @@ async function probe() {
   }
 }
 
-setTimeout(() => {
-  probe().catch(e => console.error(JSON.stringify({ event: 'mermail_probe', status: 'failed', message: String(e.message || e) })));
-}, 1500);
+if (!isChild) {
+  setTimeout(() => {
+    probe().catch(e => console.error(JSON.stringify({ event: 'mermail_probe', status: 'failed', message: String(e.message || e) })));
+  }, 1500);
+}
