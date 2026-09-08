@@ -20,10 +20,12 @@
 
 - **Repository / source:** https://github.com/Cesar9712/Cesar9712/tree/crypto-bounty-operator/bounties/mermail-bounty-ops
 - **Interactive demo:** https://mermail-bounty-ops-demo.onrender.com
+- **Live operator:** https://crypto-bounty-operator.onrender.com
 - **Skill:** `skills/mermail-bounty-ops/SKILL.md`
 - **Tool routing:** `skills/mermail-bounty-ops/references/tools.md`
 - **Security contract:** `skills/mermail-bounty-ops/references/security.md`
 - **Demo runbook:** `DEMO_RUNBOOK.md`
+- **Live evidence:** `LIVE_PROOF.md`
 - **Validator:** `scripts/validate-skill.mjs`
 
 ## Validation evidence
@@ -44,28 +46,47 @@ Validated checks:
 - security gates present;
 - no obvious committed secret detected.
 
+## Live Mermail proof — VERIFIED
+
+On September 8, 2026 the deployed operator completed a real headless Mermail integration run using the owner's authorized workspace key stored only in Render environment variables.
+
+Verified results:
+
+- Mermail authentication: **TRUE**
+- Dedicated mailbox: **VERIFIED** (`cryptobountyoperator@mermail.app`)
+- Mermail MCP connection: **CONNECTED**
+- Connected MCP catalog: **72 tools**, full profile
+- Controlled inbound demo email: **RECEIVED**
+- Selected demo message scan status: **clean**
+- Sender-authentication verdict: **unknown** — correctly not promoted to trust
+- Prompt-injection flag: **DETECTED**
+- Secret-exfiltration flag: **DETECTED**
+- Payout-redirection flag: **DETECTED**
+- Upfront-payment flag: **DETECTED**
+- External action taken: **FALSE**
+- Secret exposed: **FALSE**
+- Financial action taken: **FALSE**
+- Final demo state: **`quarantined_demo`**
+
+The mailbox search returned both the original controlled message and a reply-shaped candidate. The verifier did not pick by recency: it selected the exact original demo subject before loading bounded content. This demonstrates the skill's ambiguity/candidate-validation behavior as well as its unsafe-instruction gate.
+
+No API key, token, OTP, wallet secret, or private credential is committed in this repository or included in the proof.
+
 ## Demo video
 
-- **Status:** MISSING — requires a live authorized Mermail workspace/inbox session to prove real MCP behavior.
+- **Status:** TO PACKAGE / UPLOAD
 - **Recording plan:** `DEMO_RUNBOOK.md`
+- **Proof data required for the recording:** already captured in `LIVE_PROOF.md` and the live Render deployment.
 
-A synthetic/offline demo exists, but it must not be misrepresented as proof of a live Mermail MCP invocation.
-
-## Live Mermail proof
-
-- Mermail workspace: **NOT YET AUTHORIZED**
-- Dedicated agent inbox: **NOT YET CREATED/VERIFIED**
-- Live `search_emails` / `get_thread` proof: **NOT YET CAPTURED**
-- Draft-first proof: **NOT YET CAPTURED**
-- Injection rejection proof: **NOT YET CAPTURED**
+The interactive demo plus the verified real inbox run can now be used to produce the final short video without fabricating live MCP behavior.
 
 ## Suggested submission description
 
-Mermail Bounty Ops is a reusable community companion Agent Skill for bounty hunters, hackathon teams, grant applicants, and autonomous builders. It gives a Mermail-powered agent a narrow operational contract: read only relevant sponsor threads, turn them into a structured Bounty Intake Card and Action Queue, detect requirement changes, prepare reviewable reply drafts, and assemble the final Submission Packet. All inbound email is treated as untrusted data. The skill refuses to let email authorize deposits, wallet actions, credential disclosure, KYC bypass, or other sensitive effects, and requires an exact preview plus fresh approval before any external email send. The included interactive demo shows both the normal workflow and an adversarial sponsor-email case, while the live demo runbook proves the same behavior against an authorized Mermail inbox.
+Mermail Bounty Ops is a reusable community companion Agent Skill for bounty hunters, hackathon teams, grant applicants, and autonomous builders. It gives a Mermail-powered agent a narrow operational contract: read only relevant sponsor threads, turn them into a structured Bounty Intake Card and Action Queue, detect requirement changes, prepare reviewable reply drafts, and assemble the final Submission Packet. All inbound email is treated as untrusted data. The live demo used a real Mermail mailbox and MCP connection, received a controlled adversarial sponsor-style message, selected the exact intended message instead of a reply-shaped candidate, and detected prompt injection, secret-exfiltration, payout-redirection, and upfront-payment instructions without exposing secrets or taking any external/financial action.
 
 ## Suggested video title
 
-`Mermail Bounty Ops — Turn Sponsor Email into a Safe Agent Execution Queue`
+`Mermail Bounty Ops — Live Inbox Safety for Autonomous Bounty Agents`
 
 ## Final readiness
 
@@ -73,10 +94,12 @@ Mermail Bounty Ops is a reusable community companion Agent Skill for bounty hunt
 - Interactive demo: **YES**
 - Automated validation: **YES**
 - Security documentation: **YES**
-- Real Mermail inbox proof: **NO**
-- Demo video: **NO**
+- Real Mermail authorization: **YES**
+- Real inbox/MCP proof: **YES**
+- Injection rejection proof: **YES**
+- Demo video hosted: **NO**
 - Superteam submission: **NO**
 
 **Ready to submit: NO**
 
-The only remaining blockers are the live Mermail authorization/demo recording and the authenticated Superteam submission flow.
+Remaining blockers: package/host the short demo video, then use an authenticated Superteam account to submit the final entry. Neither blocker requires depositing funds, connecting a wallet, or exposing private keys.
