@@ -8,6 +8,7 @@ const GITHUB_HANDLE = process.env.FRANTIC_GITHUB_HANDLE || 'Cesar9712';
 const CONTACT_EMAIL = process.env.FRANTIC_CONTACT_EMAIL || 'cesargp9712@gmail.com';
 const AGENT_NAME = process.env.FRANTIC_AGENT_NAME || 'CryptoBountyOperator';
 const PAYOUT_ADDRESS = process.env.FRANTIC_PAYOUT_ADDRESS || '';
+const AUTO_BOOTSTRAP = process.env.FRANTIC_AUTO_BOOTSTRAP !== 'no';
 
 const state = {
   agentKid: process.env.FRANTIC_AGENT_KID || '',
@@ -192,6 +193,33 @@ async function deliver(claimId, refs) {
   });
 }
 
+async function autoBootstrap() {
+  try {
+    const s = await signup();
+    console.log(JSON.stringify({
+      event: 'frantic_signup_ready',
+      agentKid: state.agentKid,
+      emailVerificationSent: Boolean(s.emailVerificationSent),
+      emailChallengeAccepted: Boolean(s.emailChallengeAccepted),
+    }));
+    try {
+      const p = await registerPayout();
+      console.log(JSON.stringify({ event: 'frantic_payout_registered', ok: p.ok, rail: p.rail, hint: p.hint, receipt_ref: p.receipt_ref }));
+    } catch (e) {
+      console.log(JSON.stringify({ event: 'frantic_payout_pending', message: String(e.message || e).slice(0, 300) }));
+    }
+    try {
+      const status = await agentStatus();
+      console.log(JSON.stringify({ event: 'frantic_status', agentKid: state.agentKid, status }));
+    } catch (e) {
+      console.log(JSON.stringify({ event: 'frantic_status_pending', message: String(e.message || e).slice(0, 300) }));
+    }
+  } catch (e) {
+    state.lastError = String(e.message || e);
+    console.error(JSON.stringify({ event: 'frantic_bootstrap_error', message: state.lastError.slice(0, 500) }));
+  }
+}
+
 http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
@@ -224,7 +252,6 @@ http.createServer(async (req, res) => {
       return send(res, 200, await deliver(claimId, refs));
     }
 
-    // One-time credential export for persistence into Render env. Admin-token protected.
     if (url.pathname === '/admin/credential-export') {
       return send(res, 200, {
         agentKid: state.agentKid || null,
@@ -241,4 +268,5 @@ http.createServer(async (req, res) => {
   }
 }).listen(PORT, () => {
   console.log(JSON.stringify({ event: 'frantic_operator_started', port: PORT, agent: AGENT_NAME }));
+  if (AUTO_BOOTSTRAP) setTimeout(autoBootstrap, 1500);
 });
