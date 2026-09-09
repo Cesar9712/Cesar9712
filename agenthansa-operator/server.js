@@ -35,6 +35,17 @@ async function req(path, options={}) {
   if (!r.ok) { const e = new Error(`AgentHansa ${r.status}: ${text.slice(0,700)}`); e.status=r.status; e.data=data; throw e; }
   return data;
 }
+function deep(obj, keys) {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const k of keys) if (typeof obj[k] === 'string' && obj[k]) return obj[k];
+  for (const v of Object.values(obj)) {
+    if (v && typeof v === 'object') {
+      const found = deep(v, keys);
+      if (found) return found;
+    }
+  }
+  return '';
+}
 
 async function register() {
   if (state.apiKey) return {configured:true, agentId:state.agentId || null};
@@ -42,10 +53,13 @@ async function register() {
     method:'POST', headers:{'content-type':'application/json'},
     body:JSON.stringify({name:NAME, description:DESCRIPTION})
   });
-  state.apiKey = out.api_key || out.apiKey || '';
-  state.agentId = out.id || out.agent_id || out.agentId || '';
-  if (!state.apiKey) throw new Error('Registration returned no api_key');
-  console.log(JSON.stringify({event:'agenthansa_registered', agentId:state.agentId, apiKey:state.apiKey, referralCode:out.referral_code||null}));
+  state.apiKey = deep(out, ['api_key','apiKey','agent_api_key','agentApiKey']);
+  state.agentId = deep(out, ['agent_id','agentId','id']);
+  if (!state.apiKey) {
+    console.log(JSON.stringify({event:'agenthansa_registration_shape', topKeys:Object.keys(out||{}), nestedAgentKeys:out?.agent&&typeof out.agent==='object'?Object.keys(out.agent):[], nestedDataKeys:out?.data&&typeof out.data==='object'?Object.keys(out.data):[]}));
+    throw new Error('Registration returned no recognizable api_key');
+  }
+  console.log(JSON.stringify({event:'agenthansa_registered', agentId:state.agentId, apiKey:state.apiKey, referralCode:deep(out,['referral_code','referralCode'])||null}));
   return {configured:true, agentId:state.agentId||null};
 }
 
@@ -53,23 +67,21 @@ function solveChallenge(question) {
   const q = String(question||'').toLowerCase();
   const nums = [...q.matchAll(/-?\d+/g)].map(m=>Number(m[0]));
   if (!nums.length) return null;
-  // Prefer clause-by-clause arithmetic for common word-problem challenge templates.
-  let value = nums[0], used = 1;
+  let value = nums[0];
   const parts = q.split(/[,.?;]/).map(x=>x.trim()).filter(Boolean);
+  let firstSeen = false;
   for (const p of parts) {
     const ns = [...p.matchAll(/-?\d+/g)].map(m=>Number(m[0]));
     if (!ns.length) continue;
     const n = ns[ns.length-1];
-    if (used===1 && p.includes(String(nums[0]))) { used++; continue; }
-    if (/(gains?|gets?|receives?|adds?|finds?|earns?|buys?|is given|are added|more)/.test(p)) value += n;
-    else if (/(loses?|spends?|gives?|removes?|drops?|uses?|sells?|are taken|fewer|left after)/.test(p)) value -= n;
+    if (!firstSeen) { firstSeen = true; continue; }
+    if (/(gains?|gets?|receives?|adds?|finds?|earns?|is given|are added|more|joins?)/.test(p)) value += n;
+    else if (/(loses?|spends?|gives?|removes?|drops?|uses?|are taken|fewer|leaves?)/.test(p)) value -= n;
     else if (/(doubles?|twice)/.test(p)) value *= 2;
     else if (/(triples?)/.test(p)) value *= 3;
     else if (/(half|halves?)/.test(p)) value = Math.floor(value/2);
-    used++;
   }
-  if (Number.isFinite(value)) return Math.trunc(value);
-  return null;
+  return Number.isFinite(value) ? Math.trunc(value) : null;
 }
 
 async function checkin() {
@@ -107,6 +119,7 @@ async function chooseAlliance() {
 
 async function scan() {
   const tasks = [
+    ['profile','/api/agents/me'],
     ['feed','/api/agents/feed'],
     ['earnings','/api/agents/earnings'],
     ['transfers','/api/agents/transfers'],
