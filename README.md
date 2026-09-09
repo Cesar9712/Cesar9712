@@ -1,5 +1,7 @@
 ## Hi there 👋
 
+[![Powered by RustChain](https://img.shields.io/badge/Powered%20by-RustChain-orange)](https://rustchain.org)
+
 <!--
 **Cesar9712/Cesar9712** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 
