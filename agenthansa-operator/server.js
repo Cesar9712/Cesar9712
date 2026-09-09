@@ -47,22 +47,6 @@ function deep(obj, keys) {
   return '';
 }
 
-async function register() {
-  if (state.apiKey) return {configured:true, agentId:state.agentId || null};
-  const out = await req('/api/agents/register', {
-    method:'POST', headers:{'content-type':'application/json'},
-    body:JSON.stringify({name:NAME, description:DESCRIPTION})
-  });
-  state.apiKey = deep(out, ['api_key','apiKey','agent_api_key','agentApiKey']);
-  state.agentId = deep(out, ['agent_id','agentId','id']);
-  if (!state.apiKey) {
-    console.log(JSON.stringify({event:'agenthansa_registration_shape', topKeys:Object.keys(out||{}), nestedAgentKeys:out?.agent&&typeof out.agent==='object'?Object.keys(out.agent):[], nestedDataKeys:out?.data&&typeof out.data==='object'?Object.keys(out.data):[]}));
-    throw new Error('Registration returned no recognizable api_key');
-  }
-  console.log(JSON.stringify({event:'agenthansa_registered', agentId:state.agentId, apiKey:state.apiKey, referralCode:deep(out,['referral_code','referralCode'])||null}));
-  return {configured:true, agentId:state.agentId||null};
-}
-
 function solveChallenge(question) {
   const q = String(question||'').toLowerCase();
   const nums = [...q.matchAll(/-?\d+/g)].map(m=>Number(m[0]));
@@ -82,6 +66,45 @@ function solveChallenge(question) {
     else if (/(half|halves?)/.test(p)) value = Math.floor(value/2);
   }
   return Number.isFinite(value) ? Math.trunc(value) : null;
+}
+
+async function register() {
+  if (state.apiKey) return {configured:true, agentId:state.agentId || null};
+  let out = await req('/api/agents/register', {
+    method:'POST', headers:{'content-type':'application/json'},
+    body:JSON.stringify({name:NAME, description:DESCRIPTION})
+  });
+
+  if (out?.status === 'challenge_required' || (out?.challenge_id && out?.question && !deep(out,['api_key','apiKey','agent_api_key','agentApiKey']))) {
+    const answer = solveChallenge(out.question);
+    console.log(JSON.stringify({event:'agenthansa_register_challenge', challengeId:out.challenge_id, question:out.question, derivedAnswer:answer, instructions:out.instructions||null}));
+    if (!Number.isInteger(answer)) throw new Error(`Unable to solve registration challenge: ${out.question}`);
+    const payloads = [
+      {challenge_id:out.challenge_id, challenge_answer:answer},
+      {challenge_id:out.challenge_id, answer},
+    ];
+    const endpoints = ['/api/agents/register/verify','/api/agents/register/challenge','/api/agents/verify'];
+    let verified = null, last = null;
+    outer: for (const endpoint of endpoints) {
+      for (const payload of payloads) {
+        try {
+          verified = await req(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+          break outer;
+        } catch (e) { last=e; if (![404,405,422].includes(e.status)) break; }
+      }
+    }
+    if (!verified) throw last || new Error('Registration challenge verification failed');
+    out = verified;
+  }
+
+  state.apiKey = deep(out, ['api_key','apiKey','agent_api_key','agentApiKey']);
+  state.agentId = deep(out, ['agent_id','agentId','id']);
+  if (!state.apiKey) {
+    console.log(JSON.stringify({event:'agenthansa_registration_shape', topKeys:Object.keys(out||{}), nestedAgentKeys:out?.agent&&typeof out.agent==='object'?Object.keys(out.agent):[], nestedDataKeys:out?.data&&typeof out.data==='object'?Object.keys(out.data):[]}));
+    throw new Error('Registration returned no recognizable api_key');
+  }
+  console.log(JSON.stringify({event:'agenthansa_registered', agentId:state.agentId, referralCode:deep(out,['referral_code','referralCode'])||null}));
+  return {configured:true, agentId:state.agentId||null};
 }
 
 async function checkin() {
@@ -105,16 +128,16 @@ async function chooseAlliance() {
     const a = await req('/api/agents/alliance');
     if (a?.alliance || a?.current_alliance) return a;
   } catch {}
-  try {
-    const out = await req('/api/agents/alliance', {
-      method:'PATCH', headers:{'content-type':'application/json'}, body:JSON.stringify({alliance:'blue'})
-    });
-    console.log(JSON.stringify({event:'agenthansa_alliance', result:out}));
-    return out;
-  } catch (e) {
-    console.log(JSON.stringify({event:'agenthansa_alliance_skip', message:String(e.message||e).slice(0,300)}));
-    return null;
+  for (const alliance of ['royal','heavenly','terra','blue']) {
+    try {
+      const out = await req('/api/agents/alliance', {
+        method:'PATCH', headers:{'content-type':'application/json'}, body:JSON.stringify({alliance})
+      });
+      console.log(JSON.stringify({event:'agenthansa_alliance', alliance, result:out}));
+      return out;
+    } catch {}
   }
+  return null;
 }
 
 async function scan() {
@@ -165,7 +188,6 @@ http.createServer(async (req,res)=>{
     if (url.pathname==='/admin/scan') return send(res,200,await scan());
     if (url.pathname==='/admin/earnings') return send(res,200,await req('/api/agents/earnings'));
     if (url.pathname==='/admin/transfers') return send(res,200,await req('/api/agents/transfers'));
-    if (url.pathname==='/admin/credential-export') return send(res,200,{agentId:state.agentId||null,apiKey:state.apiKey||null});
     return send(res,404,{error:'unknown_admin_route'});
   } catch(e) { return send(res,e.status||500,{error:String(e.message||e).slice(0,700),data:e.data||null}); }
 }).listen(PORT,()=>{
